@@ -1,10 +1,12 @@
 # bledfu
 
+No frills, no bloat, no telemetry getting sent anywhere.
+
+See https://thandal.github.io/bledfu/
+
 A single-page [Web Bluetooth](https://webbluetoothcg.github.io/web-bluetooth/) tool for updating
 Nordic device firmware over Bluetooth LE using the [secure DFU](https://infocenter.nordicsemi.com/topic/com.nordic.infocenter.sdk5.v12.0.0/lib_dfu_transport_ble.html)
-protocol.
-
-The whole app is `index.html` — no build step, no dependencies to install. Open it in a
+protocol. The whole app is `index.html` — no build step, no dependencies to install. Open it in a
 Web Bluetooth capable browser (desktop Chrome/Edge) over `https://` or `localhost`.
 
 ## Usage

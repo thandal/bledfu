@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Web Bluetooth Secure DFU</title>
+  <title>bledfu</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://fonts.googleapis.com/css?family=Raleway:400,600" rel="stylesheet">
   <style>
@@ -27,11 +27,11 @@
       line-height: 1.4;
       padding: 24px 16px 60px;
     }
-    h1 { font-weight: 400; font-size: 22px; margin: 0; }
+    h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; flex: 1; }
     h2 { font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; }
     .wrap { max-width: 640px; margin: 0 auto; }
-    header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
-    header .summary { font-size: 13px; color: var(--muted); }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+    header .summary { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .panel { background: var(--panel); border-radius: 8px; padding: 18px; margin-bottom: 18px; }
 
     button {
@@ -112,7 +112,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>Secure DFU</h1>
+      <h1>📲 bledfu</h1>
       <span class="summary" id="summary"></span>
     </header>
 
