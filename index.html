@@ -3,125 +3,171 @@
 <head>
   <meta charset="UTF-8">
   <title>bledfu</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://fonts.googleapis.com/css?family=Raleway:400,600" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
   <style>
     :root {
-      --bg: #072b44;
-      --panel: rgba(255,255,255,0.06);
-      --panel-hi: rgba(255,255,255,0.12);
-      --fg: #d7ecfb;
-      --muted: #7fa6c0;
-      --accent: #2674ab;
-      --accent-hi: #3286c2;
-      --good: #4caf72;
-      --bad: #e5604f;
-      --warn: #e0a64b;
+      --bg: #0b1220;
+      --bg-2: #111a2e;
+      --card: #18223b;
+      --card-2: #1f2c4d;
+      --line: #2a3a63;
+      --text: #e6ebf5;
+      --muted: #93a0bf;
+      --accent: #4f8cff;
+      --accent-hi: #6ba2ff;
+      --good: #2ecc71;
+      --warn: #f1c40f;
+      --bad: #ff5c5c;
+      --idle: #6b7a99;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      /* legacy aliases kept so existing rules read cleanly */
+      --fg: var(--text);
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
     body {
-      font-family: 'Raleway', sans-serif;
-      color: var(--fg);
-      background: var(--bg);
-      line-height: 1.4;
-      padding: 24px 16px 60px;
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100dvh;
+      padding-bottom: env(safe-area-inset-bottom);
     }
-    h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; flex: 1; }
-    h2 { font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; }
-    .wrap { max-width: 640px; margin: 0 auto; }
-    header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+    h2 {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--muted); margin: 0 0 10px;
+    }
+
+    header {
+      position: sticky; top: 0; z-index: 5;
+      background: linear-gradient(180deg, var(--bg-2), var(--bg));
+      border-bottom: 1px solid var(--line);
+      padding: 12px 16px;
+      padding-top: calc(12px + env(safe-area-inset-top));
+      display: flex; align-items: center; gap: 12px;
+    }
+    header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; flex: 1; }
     header .summary { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .panel { background: var(--panel); border-radius: 8px; padding: 18px; margin-bottom: 18px; }
+
+    main { padding: 14px; max-width: 720px; margin: 0 auto; }
+    .panel {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px; padding: 16px; margin-bottom: 12px;
+    }
 
     button {
-      font-family: inherit; font-size: 13px; color: var(--fg);
-      background: var(--accent); border: 0; border-radius: 4px;
-      padding: 0 16px; height: 34px; cursor: pointer; text-transform: uppercase;
-      letter-spacing: 0.03em; transition: background 0.15s, opacity 0.15s;
+      appearance: none; border: 1px solid var(--line); background: var(--card);
+      color: var(--text); border-radius: 10px; padding: 10px 14px;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background 0.15s, border-color 0.15s, transform 0.05s;
     }
-    button:hover:not(:disabled) { background: var(--accent-hi); }
-    button:disabled { opacity: 0.4; cursor: default; }
-    button.ghost { background: transparent; border: 1px solid var(--panel-hi); }
-    button.ghost:hover:not(:disabled) { background: var(--panel-hi); }
-    button.big { height: 44px; font-size: 14px; width: 100%; }
+    button:hover:not(:disabled) { background: var(--card-2); border-color: var(--accent); }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button.primary { background: var(--accent); border-color: var(--accent); }
+    button.primary:hover:not(:disabled) { background: var(--accent-hi); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.ghost { background: transparent; }
+    button.big { width: 100%; padding: 12px 14px; font-size: 15px; }
 
     /* Targets */
-    .targets-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .targets-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .targets-head h2 { margin: 0; }
+    .targets-head button { padding: 6px 12px; font-size: 13px; }
     #targets { display: flex; flex-direction: column; gap: 8px; }
     .target {
       display: flex; align-items: center; gap: 12px;
-      background: var(--panel); border: 1px solid transparent; border-radius: 6px;
-      padding: 10px 12px; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
     }
-    .target:hover { background: var(--panel-hi); }
-    .target.selected { border-color: var(--accent-hi); background: var(--panel-hi); }
-    .target.stub { opacity: 0.75; cursor: default; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
+    .target:hover { border-color: var(--accent); }
+    .target.selected { border-color: var(--accent); background: var(--card-2); box-shadow: 0 0 0 1px var(--accent) inset; }
+    .target.stub { border-style: dashed; opacity: 0.85; cursor: default; }
+    .target.stub:hover { border-color: var(--line); }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%; flex: none;
+      background: var(--idle); box-shadow: 0 0 0 2px rgba(255,255,255,0.05);
+      transition: background 0.3s;
+    }
     .dot.connecting { background: var(--warn); animation: pulse 1s infinite; }
     .dot.connected { background: var(--good); }
     .dot.error { background: var(--bad); }
-    @keyframes pulse { 50% { opacity: 0.3; } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
     .target .info { flex: 1; min-width: 0; }
-    .target .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .target .sub { font-size: 12px; color: var(--muted); }
+    .target .name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .target .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
     .target .forget {
-      background: transparent; border: 0; color: var(--muted); height: 24px; width: 24px;
-      padding: 0; font-size: 16px; line-height: 1; border-radius: 4px;
+      background: transparent; border: none; color: var(--muted); height: 28px; width: 28px;
+      padding: 0; font-size: 16px; line-height: 1; border-radius: 8px;
     }
-    .target .forget:hover { color: var(--bad); background: rgba(229,96,79,0.12); }
+    .target .forget:hover { color: var(--bad); background: rgba(255,92,92,0.12); }
     .empty { color: var(--muted); font-size: 13px; padding: 4px 0; }
 
     /* Firmware drop zone */
     #drop {
-      position: relative; border: 2px dashed var(--panel-hi); border-radius: 6px;
-      padding: 26px 16px; text-align: center; cursor: pointer; transition: background 0.15s, border-color 0.15s;
-      display: block;
+      position: relative; border: 1px dashed var(--line); border-radius: 14px;
+      padding: 30px 16px; text-align: center; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      display: block; background: var(--card-2);
     }
-    #drop:hover, #drop.hover { background: var(--panel-hi); border-color: var(--accent-hi); }
-    #drop strong { font-weight: 600; }
-    #drop .hint { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }
+    #drop:hover, #drop.hover { background: var(--card-2); border-color: var(--accent); }
+    #drop strong { font-weight: 600; font-size: 16px; }
+    #drop .hint { display: block; font-size: 13px; color: var(--muted); margin-top: 6px; }
     #file { display: none; }
     .file-loaded { color: var(--good); }
 
     /* Progress */
     #progress { margin-top: 14px; }
     #progress.hidden { display: none; }
-    #bar-track { border: 1px solid var(--panel-hi); border-radius: 4px; height: 22px; overflow: hidden; }
-    #bar { background: var(--accent); width: 0%; height: 100%; transition: width 0.1s linear; }
-    #transfer { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+    #bar-track {
+      border: 1px solid var(--line); border-radius: 6px; height: 22px; overflow: hidden;
+      background: rgba(255,255,255,0.06);
+    }
+    #bar { background: linear-gradient(90deg, var(--accent), var(--accent-hi)); width: 0%; height: 100%; transition: width 0.1s linear; }
+    #transfer { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; font-variant-numeric: tabular-nums; }
 
-    #status { min-height: 18px; font-size: 13px; margin-top: 12px; text-align: center; }
-    #status.err { color: var(--bad); }
-    #status.ok { color: var(--good); }
+    #status { min-height: 18px; font-size: 13px; margin-top: 12px; text-align: center; color: var(--muted); }
+    #status.err { color: #ff9090; }
+    #status.ok { color: #79e6a8; }
 
     /* Log */
-    details.log { margin-top: 8px; }
-    details.log summary { cursor: pointer; color: var(--muted); font-size: 12px; }
-    #log { background: rgba(0,0,0,0.25); border-radius: 4px; padding: 10px; margin-top: 8px;
-      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; max-height: 200px; overflow: auto; white-space: pre-wrap; }
-    #log .err { color: var(--bad); }
+    details.log { margin-top: 16px; }
+    details.log summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 6px 0; user-select: none; }
+    #log {
+      background: #0a0f1c; border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px; margin-top: 8px;
+      font-family: var(--mono); font-size: 11px; color: #b6c4e0;
+      max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+    }
+    #log .err { color: #ff9090; }
 
-    .notice { font-size: 12px; color: var(--warn); background: rgba(224,166,75,0.1);
-      border: 1px solid rgba(224,166,75,0.3); border-radius: 6px; padding: 10px 12px; margin-bottom: 18px; }
+    .notice {
+      background: var(--card); border: 1px solid var(--line);
+      border-left: 3px solid var(--warn);
+      border-radius: 10px; padding: 10px 12px; margin-bottom: 14px;
+      font-size: 12px; color: var(--muted); line-height: 1.5;
+    }
     .notice.hidden { display: none; }
+    .notice strong { color: var(--text); }
+    code {
+      background: var(--card-2); padding: 2px 6px; border-radius: 4px;
+      font-family: var(--mono); font-size: 11px; color: var(--text); word-break: break-all;
+    }
     a { color: var(--accent-hi); }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>📲 bledfu</h1>
-      <span class="summary" id="summary"></span>
-    </header>
+  <header>
+    <h1>📲 bledfu</h1>
+    <span class="summary" id="summary"></span>
+  </header>
 
+  <main>
     <div class="notice hidden" id="notice"></div>
 
     <div class="panel">
       <div class="targets-head">
         <h2>Targets</h2>
-        <button class="ghost" id="btnAdd">+ Add target</button>
+        <button class="primary" id="btnAdd">＋ Add target</button>
       </div>
       <div id="targets"></div>
       <div class="empty" id="targetsEmpty">No paired targets yet &mdash; click &ldquo;Add target&rdquo; to pair one.</div>
@@ -137,7 +183,7 @@
     </div>
 
     <div class="panel">
-      <button class="big" id="btnUpload" disabled>Upload firmware</button>
+      <button class="big primary" id="btnUpload" disabled>Upload firmware</button>
       <div id="status"></div>
       <div id="progress" class="hidden">
         <div id="bar-track"><div id="bar"></div></div>
@@ -148,7 +194,7 @@
         <div id="log"></div>
       </details>
     </div>
-  </div>
+  </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crc-32/1.0.2/crc32.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
