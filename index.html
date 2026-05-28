@@ -1,5 +1,860 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta http-equiv="refresh" content="0; url='examples/web.html'" />
+  <meta charset="UTF-8">
+  <title>Web Bluetooth Secure DFU</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css?family=Raleway:400,600" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #072b44;
+      --panel: rgba(255,255,255,0.06);
+      --panel-hi: rgba(255,255,255,0.12);
+      --fg: #d7ecfb;
+      --muted: #7fa6c0;
+      --accent: #2674ab;
+      --accent-hi: #3286c2;
+      --good: #4caf72;
+      --bad: #e5604f;
+      --warn: #e0a64b;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Raleway', sans-serif;
+      color: var(--fg);
+      background: var(--bg);
+      line-height: 1.4;
+      padding: 24px 16px 60px;
+    }
+    h1 { font-weight: 400; font-size: 22px; margin: 0; }
+    h2 { font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px; }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+    header .summary { font-size: 13px; color: var(--muted); }
+    .panel { background: var(--panel); border-radius: 8px; padding: 18px; margin-bottom: 18px; }
+
+    button {
+      font-family: inherit; font-size: 13px; color: var(--fg);
+      background: var(--accent); border: 0; border-radius: 4px;
+      padding: 0 16px; height: 34px; cursor: pointer; text-transform: uppercase;
+      letter-spacing: 0.03em; transition: background 0.15s, opacity 0.15s;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hi); }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button.ghost { background: transparent; border: 1px solid var(--panel-hi); }
+    button.ghost:hover:not(:disabled) { background: var(--panel-hi); }
+    button.big { height: 44px; font-size: 14px; width: 100%; }
+
+    /* Targets */
+    .targets-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .targets-head h2 { margin: 0; }
+    #targets { display: flex; flex-direction: column; gap: 8px; }
+    .target {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--panel); border: 1px solid transparent; border-radius: 6px;
+      padding: 10px 12px; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+    }
+    .target:hover { background: var(--panel-hi); }
+    .target.selected { border-color: var(--accent-hi); background: var(--panel-hi); }
+    .target.stub { opacity: 0.75; cursor: default; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
+    .dot.connecting { background: var(--warn); animation: pulse 1s infinite; }
+    .dot.connected { background: var(--good); }
+    .dot.error { background: var(--bad); }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+    .target .info { flex: 1; min-width: 0; }
+    .target .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .target .sub { font-size: 12px; color: var(--muted); }
+    .target .forget {
+      background: transparent; border: 0; color: var(--muted); height: 24px; width: 24px;
+      padding: 0; font-size: 16px; line-height: 1; border-radius: 4px;
+    }
+    .target .forget:hover { color: var(--bad); background: rgba(229,96,79,0.12); }
+    .empty { color: var(--muted); font-size: 13px; padding: 4px 0; }
+
+    /* Firmware drop zone */
+    #drop {
+      position: relative; border: 2px dashed var(--panel-hi); border-radius: 6px;
+      padding: 26px 16px; text-align: center; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+      display: block;
+    }
+    #drop:hover, #drop.hover { background: var(--panel-hi); border-color: var(--accent-hi); }
+    #drop strong { font-weight: 600; }
+    #drop .hint { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; }
+    #file { display: none; }
+    .file-loaded { color: var(--good); }
+
+    /* Progress */
+    #progress { margin-top: 14px; }
+    #progress.hidden { display: none; }
+    #bar-track { border: 1px solid var(--panel-hi); border-radius: 4px; height: 22px; overflow: hidden; }
+    #bar { background: var(--accent); width: 0%; height: 100%; transition: width 0.1s linear; }
+    #transfer { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+    #status { min-height: 18px; font-size: 13px; margin-top: 12px; text-align: center; }
+    #status.err { color: var(--bad); }
+    #status.ok { color: var(--good); }
+
+    /* Log */
+    details.log { margin-top: 8px; }
+    details.log summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+    #log { background: rgba(0,0,0,0.25); border-radius: 4px; padding: 10px; margin-top: 8px;
+      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; max-height: 200px; overflow: auto; white-space: pre-wrap; }
+    #log .err { color: var(--bad); }
+
+    .notice { font-size: 12px; color: var(--warn); background: rgba(224,166,75,0.1);
+      border: 1px solid rgba(224,166,75,0.3); border-radius: 6px; padding: 10px 12px; margin-bottom: 18px; }
+    .notice.hidden { display: none; }
+    a { color: var(--accent-hi); }
+  </style>
 </head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Secure DFU</h1>
+      <span class="summary" id="summary"></span>
+    </header>
+
+    <div class="notice hidden" id="notice"></div>
+
+    <div class="panel">
+      <div class="targets-head">
+        <h2>Targets</h2>
+        <button class="ghost" id="btnAdd">+ Add target</button>
+      </div>
+      <div id="targets"></div>
+      <div class="empty" id="targetsEmpty">No paired targets yet &mdash; click &ldquo;Add target&rdquo; to pair one.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Firmware</h2>
+      <input id="file" type="file" accept=".zip">
+      <label id="drop" for="file">
+        <strong id="dropLabel">Choose a firmware package</strong>
+        <span class="hint">or drag a .zip here</span>
+      </label>
+    </div>
+
+    <div class="panel">
+      <button class="big" id="btnUpload" disabled>Upload firmware</button>
+      <div id="status"></div>
+      <div id="progress" class="hidden">
+        <div id="bar-track"><div id="bar"></div></div>
+        <div id="transfer"></div>
+      </div>
+      <details class="log">
+        <summary>Log</summary>
+        <div id="log"></div>
+      </details>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crc-32/1.0.2/crc32.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+  "use strict";
+
+  // ───────────────────────── Secure DFU protocol ─────────────────────────────
+  // Plain-JS port of Nordic's secure DFU transport (web-bluetooth-dfu).
+
+  const SERVICE_UUID = 0xFE59;
+  const CONTROL_UUID = "8ec90001-f315-4f60-9fb8-838830daea50";
+  const PACKET_UUID  = "8ec90002-f315-4f60-9fb8-838830daea50";
+  const BUTTON_UUID  = "8ec90003-f315-4f60-9fb8-838830daea50";
+
+  const LITTLE_ENDIAN = true;
+  const PACKET_SIZE = 20;
+
+  const OPERATIONS = {
+    BUTTON_COMMAND:        [0x01],
+    CREATE_COMMAND:        [0x01, 0x01],
+    CREATE_DATA:           [0x01, 0x02],
+    RECEIPT_NOTIFICATIONS: [0x02],
+    CACULATE_CHECKSUM:     [0x03],
+    EXECUTE:               [0x04],
+    SELECT_COMMAND:        [0x06, 0x01],
+    SELECT_DATA:           [0x06, 0x02],
+    RESPONSE:              [0x60, 0x20]
+  };
+
+  const RESPONSE = {
+    0x00: "Invalid opcode",
+    0x01: "Operation successful",
+    0x02: "Opcode not supported",
+    0x03: "Missing or invalid parameter value",
+    0x04: "Not enough memory for the data object",
+    0x05: "Data object does not match the firmware and hardware requirements, the signature is wrong, or parsing the command failed",
+    0x07: "Not a valid object type for a Create request",
+    0x08: "The state of the DFU process does not allow this operation",
+    0x0A: "Operation failed",
+    0x0B: "Extended error"
+  };
+
+  const EXTENDED_ERROR = {
+    0x00: "No extended error code has been set. This error indicates an implementation problem",
+    0x01: "Invalid error code. This error code should never be used outside of development",
+    0x02: "The format of the command was incorrect",
+    0x03: "The command was successfully parsed, but it is not supported or unknown",
+    0x04: "The init command is invalid. The init packet either has an invalid update type or it is missing required fields for the update type",
+    0x05: "The firmware version is too low. For an application, the version must be greater than the current application. For a bootloader, it must be greater than or equal to the current version",
+    0x06: "The hardware version of the device does not match the required hardware version for the update",
+    0x07: "The array of supported SoftDevices for the update does not contain the FWID of the current SoftDevice",
+    0x08: "The init packet does not contain a signature",
+    0x09: "The hash type that is specified by the init packet is not supported by the DFU bootloader",
+    0x0A: "The hash of the firmware image cannot be calculated",
+    0x0B: "The type of the signature is unknown or not supported by the DFU bootloader",
+    0x0C: "The hash of the received firmware image does not match the hash in the init packet",
+    0x0D: "The available space on the device is insufficient to hold the firmware"
+  };
+
+  class SecureDfu {
+    constructor(crc32, delay = 0) {
+      this.crc32 = crc32;
+      this.delay = delay;
+      this.notifyFns = {};
+      this.controlChar = null;
+      this.packetChar = null;
+      this.onLog = null;
+      this.onProgress = null;
+    }
+
+    log(message) { if (this.onLog) this.onLog(message); }
+
+    progress(bytes) {
+      if (this.onProgress) this.onProgress({ object: "unknown", totalBytes: 0, currentBytes: bytes });
+    }
+
+    connect(device) {
+      device.addEventListener("gattserverdisconnected", () => {
+        this.notifyFns = {};
+        this.controlChar = null;
+        this.packetChar = null;
+      });
+
+      return this.gattConnect(device)
+      .then(characteristics => {
+        this.log(`found ${characteristics.length} characteristic(s)`);
+
+        this.packetChar = characteristics.find(c => c.uuid === PACKET_UUID);
+        if (!this.packetChar) throw new Error("Unable to find packet characteristic");
+        this.log("found packet characteristic");
+
+        this.controlChar = characteristics.find(c => c.uuid === CONTROL_UUID);
+        if (!this.controlChar) throw new Error("Unable to find control characteristic");
+        this.log("found control characteristic");
+
+        if (!this.controlChar.properties.notify && !this.controlChar.properties.indicate) {
+          throw new Error("Control characteristic does not allow notifications");
+        }
+        return this.controlChar.startNotifications();
+      })
+      .then(() => {
+        this.controlChar.addEventListener("characteristicvaluechanged", this.handleNotification.bind(this));
+        this.log("enabled control notifications");
+        return device;
+      });
+    }
+
+    gattConnect(device, serviceUUID = SERVICE_UUID) {
+      return Promise.resolve()
+      .then(() => device.gatt.connected ? device.gatt : device.gatt.connect())
+      .then(server => {
+        this.log("connected to gatt server");
+        return server.getPrimaryService(serviceUUID).catch(() => { throw new Error("Unable to find DFU service"); });
+      })
+      .then(service => {
+        this.log("found DFU service");
+        return service.getCharacteristics();
+      });
+    }
+
+    handleNotification(event) {
+      const view = event.target.value;
+      if (OPERATIONS.RESPONSE.indexOf(view.getUint8(0)) < 0) {
+        throw new Error("Unrecognised control characteristic response notification");
+      }
+      const operation = view.getUint8(1);
+      if (this.notifyFns[operation]) {
+        const result = view.getUint8(2);
+        let error = null;
+        if (result === 0x01) {
+          this.notifyFns[operation].resolve(new DataView(view.buffer, 3));
+        } else if (result === 0x0B) {
+          error = `Error: ${EXTENDED_ERROR[view.getUint8(3)]}`;
+        } else {
+          error = `Error: ${RESPONSE[result]}`;
+        }
+        if (error) {
+          this.log(`notify: ${error}`);
+          this.notifyFns[operation].reject(error);
+        }
+        delete this.notifyFns[operation];
+      }
+    }
+
+    sendOperation(characteristic, operation, buffer) {
+      return new Promise((resolve, reject) => {
+        let size = operation.length;
+        if (buffer) size += buffer.byteLength;
+
+        const value = new Uint8Array(size);
+        value.set(operation);
+        if (buffer) value.set(new Uint8Array(buffer), operation.length);
+
+        this.notifyFns[operation[0]] = { resolve, reject };
+
+        characteristic.writeValue(value).catch(e => {
+          this.log(e);
+          return this.delayPromise(500).then(() => characteristic.writeValue(value));
+        });
+      });
+    }
+
+    sendControl(operation, buffer) {
+      return new Promise((resolve, reject) => {
+        this.sendOperation(this.controlChar, operation, buffer)
+        .then(resp => setTimeout(() => resolve(resp), this.delay))
+        .catch(reject);
+      });
+    }
+
+    transferInit(buffer) {
+      return this.transfer(buffer, "init", OPERATIONS.SELECT_COMMAND, OPERATIONS.CREATE_COMMAND);
+    }
+
+    transferFirmware(buffer) {
+      return this.transfer(buffer, "firmware", OPERATIONS.SELECT_DATA, OPERATIONS.CREATE_DATA);
+    }
+
+    transfer(buffer, type, selectType, createType) {
+      return this.sendControl(selectType)
+      .then(response => {
+        const maxSize = response.getUint32(0, LITTLE_ENDIAN);
+        const offset = response.getUint32(4, LITTLE_ENDIAN);
+        const crc = response.getInt32(8, LITTLE_ENDIAN);
+
+        if (type === "init" && offset === buffer.byteLength && this.checkCrc(buffer, crc)) {
+          this.log("init packet already available, skipping transfer");
+          return;
+        }
+
+        this.progress = bytes => {
+          if (this.onProgress) this.onProgress({ object: type, totalBytes: buffer.byteLength, currentBytes: bytes });
+        };
+        this.progress(0);
+
+        return this.transferObject(buffer, createType, maxSize, offset);
+      });
+    }
+
+    transferObject(buffer, createType, maxSize, offset) {
+      const start = offset - offset % maxSize;
+      const end = Math.min(start + maxSize, buffer.byteLength);
+
+      const view = new DataView(new ArrayBuffer(4));
+      view.setUint32(0, end - start, LITTLE_ENDIAN);
+
+      return this.sendControl(createType, view.buffer)
+      .then(() => this.transferData(buffer.slice(start, end), start))
+      .then(() => this.sendControl(OPERATIONS.CACULATE_CHECKSUM))
+      .then(response => {
+        const crc = response.getInt32(4, LITTLE_ENDIAN);
+        const transferred = response.getUint32(0, LITTLE_ENDIAN);
+        const data = buffer.slice(0, transferred);
+
+        if (this.checkCrc(data, crc)) {
+          this.log(`written ${transferred} bytes`);
+          offset = transferred;
+          return this.sendControl(OPERATIONS.EXECUTE);
+        }
+        this.log("object failed to validate");
+      })
+      .then(() => {
+        if (end < buffer.byteLength) return this.transferObject(buffer, createType, maxSize, offset);
+        this.log("transfer complete");
+      });
+    }
+
+    transferData(data, offset, start) {
+      start = start || 0;
+      const end = Math.min(start + PACKET_SIZE, data.byteLength);
+      const packet = data.slice(start, end);
+
+      return this.packetChar.writeValue(packet)
+      .then(() => this.delayPromise(this.delay))
+      .then(() => {
+        this.progress(offset + end);
+        if (end < data.byteLength) return this.transferData(data, offset, end);
+      });
+    }
+
+    checkCrc(buffer, crc) {
+      if (!this.crc32) { this.log("crc32 not found, skipping CRC check"); return true; }
+      return crc === this.crc32(new Uint8Array(buffer));
+    }
+
+    delayPromise(delay) { return new Promise(resolve => setTimeout(resolve, delay)); }
+
+    // Switch a buttonless device into bootloader/DFU mode. Resolves with the
+    // device if it is already in DFU mode (control + packet present), or null
+    // if it had to reboot (caller must reconnect to the bootloader device).
+    setDfuMode(device) {
+      return this.gattConnect(device)
+      .then(characteristics => {
+        this.log(`found ${characteristics.length} characteristic(s)`);
+
+        const controlChar = characteristics.find(c => c.uuid === CONTROL_UUID);
+        const packetChar = characteristics.find(c => c.uuid === PACKET_UUID);
+        if (controlChar && packetChar) return device;
+
+        const buttonChar = characteristics.find(c => c.uuid === BUTTON_UUID);
+        if (!buttonChar) throw new Error("Unsupported device");
+
+        this.log("found buttonless characteristic");
+        if (!buttonChar.properties.notify && !buttonChar.properties.indicate) {
+          throw new Error("Buttonless characteristic does not allow notifications");
+        }
+
+        return new Promise(resolve => {
+          const complete = () => { this.notifyFns = {}; resolve(null); };
+          buttonChar.startNotifications()
+          .then(() => {
+            this.log("enabled buttonless notifications");
+            device.addEventListener("gattserverdisconnected", complete);
+            buttonChar.addEventListener("characteristicvaluechanged", this.handleNotification.bind(this));
+            return this.sendOperation(buttonChar, OPERATIONS.BUTTON_COMMAND);
+          })
+          .then(() => { this.log("sent DFU mode"); complete(); });
+        });
+      });
+    }
+
+    update(device, init, firmware) {
+      return new Promise((resolve, reject) => {
+        if (!device) return reject("Device not specified");
+        if (!init) return reject("Init not specified");
+        if (!firmware) return reject("Firmware not specified");
+
+        this.connect(device)
+        .then(() => { this.log("transferring init"); return this.transferInit(init); })
+        .then(() => { this.log("transferring firmware"); return this.transferFirmware(firmware); })
+        .then(() => {
+          this.log("complete, disconnecting...");
+          device.addEventListener("gattserverdisconnected", () => { this.log("disconnected"); resolve(device); });
+        })
+        .catch(error => {
+          // No inter-packet delay can overwhelm some stacks; retry once slowed down.
+          if (this.delay === 0) {
+            this.log("DFU update failed, but delay=0. Trying again with delay=10...");
+            this.delay = 10;
+            return this.update(device, init, firmware).then(resolve, reject);
+          }
+          reject(error);
+        });
+      });
+    }
+  }
+
+  // ───────────────────────── Firmware package (.zip) ──────────────────────────
+
+  class DfuPackage {
+    constructor(buffer) { this.buffer = buffer; this.zipFile = null; this.manifest = null; }
+
+    async load() {
+      this.zipFile = await JSZip.loadAsync(this.buffer);
+      const manifestFile = this.zipFile.file("manifest.json");
+      if (!manifestFile) throw new Error("Unable to find manifest, is this a proper DFU package?");
+      this.manifest = JSON.parse(await manifestFile.async("string")).manifest;
+      return this;
+    }
+
+    async getImage(types) {
+      for (const type of types) {
+        const entry = this.manifest[type];
+        if (!entry) continue;
+        return {
+          type,
+          initFile: entry.dat_file,
+          imageFile: entry.bin_file,
+          initData: await this.zipFile.file(entry.dat_file).async("arraybuffer"),
+          imageData: await this.zipFile.file(entry.bin_file).async("arraybuffer")
+        };
+      }
+      return null;
+    }
+
+    getBaseImage() { return this.getImage(["softdevice", "bootloader", "softdevice_bootloader"]); }
+    getAppImage() { return this.getImage(["application"]); }
+  }
+
+  // ───────────────────────── BLE connection helpers ──────────────────────────
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const isStaleError = e => /no longer in range/i.test(e && e.message || "");
+
+  // getDevices() returns devices we have permission for, but a direct
+  // gatt.connect() fails with "no longer in range" until the browser has seen
+  // the device advertise this session. Listen for one advertisement first.
+  function waitForAdvertisement(device, timeoutMs = 20000) {
+    return new Promise((resolve, reject) => {
+      if (typeof device.watchAdvertisements !== "function") {
+        return reject(new Error("watchAdvertisements() not supported by this browser"));
+      }
+      const ac = new AbortController();
+      let settled = false;
+      const finish = err => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        device.removeEventListener("advertisementreceived", onAdv);
+        try { ac.abort(); } catch (_) {}
+        if (device.watchingAdvertisements && typeof device.unwatchAdvertisements === "function") {
+          try { device.unwatchAdvertisements(); } catch (_) {}
+        }
+        err ? reject(err) : resolve();
+      };
+      const timer = setTimeout(() => finish(new Error(`no advertisement seen in ${Math.round(timeoutMs / 1000)}s`)), timeoutMs);
+      const onAdv = () => finish();
+      device.addEventListener("advertisementreceived", onAdv);
+      device.watchAdvertisements({ signal: ac.signal }).catch(e => { if (e && e.name !== "AbortError") finish(e); });
+    });
+  }
+
+  async function ensureConnected(device, advTimeout = 20000) {
+    if (device.gatt.connected) return;
+    try {
+      await device.gatt.connect();
+    } catch (e) {
+      if (!isStaleError(e) || typeof device.watchAdvertisements !== "function") throw e;
+      log(`${device.name || "device"}: not in range yet, waiting for advertisement…`);
+      await waitForAdvertisement(device, advTimeout);
+      await device.gatt.connect();
+    }
+  }
+
+  async function isInDfuMode(device) {
+    const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
+    try {
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      const chars = await service.getCharacteristics();
+      return chars.some(c => c.uuid === CONTROL_UUID) && chars.some(c => c.uuid === PACKET_UUID);
+    } catch (_) { return false; }
+  }
+
+  // ───────────────────────── Remembered-device persistence ───────────────────
+  // Surfaces previously paired targets across sessions even when getDevices()
+  // returns nothing (the chrome flag may be off); a stub lets the user re-pair.
+
+  const STORAGE_KEY = "bledfu:remembered-devices";
+  const loadRemembered = () => {
+    try { const a = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); return Array.isArray(a) ? a.filter(e => e && e.id) : []; }
+    catch (_) { return []; }
+  };
+  const saveRemembered = a => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(a)); } catch (_) {} };
+  function rememberDevice(id, name) {
+    if (!id) return;
+    const arr = loadRemembered();
+    const ex = arr.find(e => e.id === id);
+    if (ex) { if (name && ex.name !== name) { ex.name = name; saveRemembered(arr); } return; }
+    arr.push({ id, name: name || "(unnamed)" });
+    saveRemembered(arr);
+  }
+  const unrememberDevice = id => saveRemembered(loadRemembered().filter(e => e.id !== id));
+
+  // ───────────────────────── App / UI ────────────────────────────────────────
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    summary: $("summary"), notice: $("notice"), targets: $("targets"), targetsEmpty: $("targetsEmpty"),
+    btnAdd: $("btnAdd"), file: $("file"), drop: $("drop"), dropLabel: $("dropLabel"),
+    btnUpload: $("btnUpload"), status: $("status"), progress: $("progress"), bar: $("bar"),
+    transfer: $("transfer"), log: $("log")
+  };
+
+  function log(message, kind) {
+    console.log(message);
+    const line = document.createElement("div");
+    if (kind === "err") line.className = "err";
+    line.textContent = message;
+    els.log.appendChild(line);
+    els.log.scrollTop = els.log.scrollHeight;
+  }
+
+  function setStatus(text, kind) {
+    els.status.textContent = text || "";
+    els.status.className = kind || "";
+  }
+
+  function setTransfer(state) {
+    if (!state) { els.progress.classList.add("hidden"); return; }
+    els.progress.classList.remove("hidden");
+    const pct = state.totalBytes ? (state.currentBytes / state.totalBytes * 100) : 0;
+    els.bar.style.width = pct + "%";
+    els.transfer.textContent = `${state.currentBytes}/${state.totalBytes} ${state.object} bytes written`;
+  }
+
+  const app = {
+    targets: new Map(),  // id -> { id, device|null, name, stub, el, dot, sub }
+    selectedId: null,
+    pkg: null,
+    pkgName: null,
+    busy: false
+  };
+
+  // ── Target cards ──
+  function renderTarget(t) {
+    const el = document.createElement("div");
+    el.className = "target" + (t.stub ? " stub" : "");
+    el.dataset.id = t.id;
+    el.innerHTML =
+      '<span class="dot"></span>' +
+      '<div class="info"><div class="name"></div><div class="sub"></div></div>' +
+      '<button class="forget" title="Forget" aria-label="Forget">&times;</button>';
+    el.querySelector(".name").textContent = t.name;
+    el.querySelector(".sub").textContent = t.stub ? "Remembered · re-pair to use" : "Paired";
+    t.dot = el.querySelector(".dot");
+    t.sub = el.querySelector(".sub");
+    el.addEventListener("click", () => { t.stub ? addTarget() : selectTarget(t.id); });
+    el.querySelector(".forget").addEventListener("click", e => { e.stopPropagation(); forgetTarget(t.id); });
+    t.el = el;
+    els.targets.appendChild(el);
+  }
+
+  function setTargetState(t, state, sub) {
+    if (t.dot) t.dot.className = "dot" + (state ? " " + state : "");
+    if (sub && t.sub) t.sub.textContent = sub;
+  }
+
+  function selectTarget(id) {
+    app.selectedId = id;
+    for (const [tid, t] of app.targets) t.el.classList.toggle("selected", tid === id);
+    updateUploadButton();
+  }
+
+  function updateUploadButton() {
+    const t = app.targets.get(app.selectedId);
+    els.btnUpload.disabled = app.busy || !app.pkg || !t || t.stub;
+  }
+
+  function updateSummary() {
+    const real = [...app.targets.values()].filter(t => !t.stub).length;
+    const stubs = [...app.targets.values()].filter(t => t.stub).length;
+    els.targetsEmpty.style.display = app.targets.size ? "none" : "";
+    els.summary.textContent = app.targets.size
+      ? `${real} paired${stubs ? ` · ${stubs} remembered` : ""}`
+      : "";
+  }
+
+  function addRealTarget(device) {
+    rememberDevice(device.id, device.name);
+    if (app.targets.has(device.id)) {
+      const existing = app.targets.get(device.id);
+      if (existing.stub) { existing.el.remove(); app.targets.delete(device.id); }  // upgrade stub -> real
+      else return existing;
+    }
+    const t = { id: device.id, device, name: device.name || "(unnamed)", stub: false };
+    app.targets.set(device.id, t);
+    renderTarget(t);
+    updateSummary();
+    return t;
+  }
+
+  async function addTarget() {
+    try {
+      const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SERVICE_UUID] });
+      const t = addRealTarget(device);
+      selectTarget(t.id);
+      log(`paired ${t.name}`);
+    } catch (e) {
+      if (e && e.name === "NotFoundError") log("device chooser cancelled");
+      else { log(`add target failed: ${e.message || e}`, "err"); setStatus(e.message || String(e), "err"); }
+    }
+  }
+
+  async function forgetTarget(id) {
+    const t = app.targets.get(id);
+    if (!t) return;
+    if (!confirm(`Forget "${t.name}"?`)) return;
+    try { if (t.device && typeof t.device.forget === "function") await t.device.forget(); }
+    catch (e) { log(`forget failed: ${e.message}`, "err"); }
+    t.el.remove();
+    app.targets.delete(id);
+    unrememberDevice(id);
+    if (app.selectedId === id) app.selectedId = null;
+    updateSummary();
+    updateUploadButton();
+  }
+
+  // ── Firmware file ──
+  async function setPackage(file) {
+    if (!file) return;
+    setStatus("");
+    try {
+      const buffer = await file.arrayBuffer();
+      const pkg = new DfuPackage(buffer);
+      await pkg.load();
+      app.pkg = pkg;
+      app.pkgName = file.name;
+      els.dropLabel.textContent = file.name;
+      els.dropLabel.classList.add("file-loaded");
+      log(`loaded firmware package: ${file.name}`);
+    } catch (e) {
+      app.pkg = null;
+      app.pkgName = null;
+      els.dropLabel.textContent = "Choose a firmware package";
+      els.dropLabel.classList.remove("file-loaded");
+      setStatus(e.message || String(e), "err");
+      log(`package load failed: ${e.message || e}`, "err");
+    }
+    updateUploadButton();
+  }
+
+  // ── Upload ──
+  function makeDfu() {
+    const dfu = new SecureDfu(typeof CRC32 !== "undefined" ? CRC32.buf : null);
+    dfu.onLog = msg => log(typeof msg === "string" ? msg : (msg && msg.message) || String(msg));
+    dfu.onProgress = setTransfer;
+    return dfu;
+  }
+
+  async function flashImages(dfu, device) {
+    const base = await app.pkg.getBaseImage();
+    if (base) {
+      setStatus(`Updating ${base.type}: ${base.imageFile}…`);
+      await dfu.update(device, base.initData, base.imageData);
+    }
+    const appImg = await app.pkg.getAppImage();
+    if (appImg) {
+      setStatus(`Updating ${appImg.type}: ${appImg.imageFile}…`);
+      await dfu.update(device, appImg.initData, appImg.imageData);
+    }
+  }
+
+  // After a buttonless reboot the bootloader is a *different* BLE device. If it
+  // was paired before it comes back from getDevices() and we reconnect silently;
+  // otherwise we ask the user to pick it once (filtered to DFU devices).
+  async function findRebootedDevice(appIds) {
+    setStatus("Device rebooting into DFU mode…");
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      await sleep(1500);
+      let devs = [];
+      try { devs = (await navigator.bluetooth.getDevices?.()) || []; } catch (_) {}
+      for (const d of devs) {
+        if (appIds.has(d.id)) continue;
+        try {
+          await ensureConnected(d, 4000);
+          if (await isInDfuMode(d)) { log(`found bootloader: ${d.name || d.id}`); return d; }
+          try { d.gatt.disconnect(); } catch (_) {}
+        } catch (_) { /* keep scanning */ }
+      }
+    }
+    return null;
+  }
+
+  async function pickDfuDevice() {
+    setStatus("Select the device now in DFU mode…");
+    const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }], optionalServices: [SERVICE_UUID] });
+    await ensureConnected(device);
+    return device;
+  }
+
+  async function doUpload() {
+    if (app.busy) return;
+    const t = app.targets.get(app.selectedId);
+    if (!t || !t.device || !app.pkg) return;
+
+    app.busy = true;
+    updateUploadButton();
+    els.btnAdd.disabled = true;
+    setStatus("Connecting…");
+    setTransfer(null);
+    setTargetState(t, "connecting", "Connecting…");
+    log(`=== upload "${app.pkgName}" to ${t.name} ===`);
+
+    const dfu = makeDfu();
+    const appIds = new Set([...app.targets.values()].filter(x => x.device).map(x => x.device.id));
+
+    try {
+      await ensureConnected(t.device);
+      let device = await dfu.setDfuMode(t.device);
+
+      if (!device) {
+        setTargetState(t, "connecting", "Rebooting to DFU…");
+        device = await findRebootedDevice(appIds);
+        if (!device) device = await pickDfuDevice();
+        rememberDevice(device.id, device.name);
+      }
+
+      setTargetState(t, "connecting", "Updating…");
+      await flashImages(dfu, device);
+
+      setStatus("Update complete!", "ok");
+      setTransfer(null);
+      setTargetState(t, "connected", "Updated — ready to re-upload");
+      log("=== update complete ===");
+    } catch (e) {
+      const msg = e && e.message || String(e);
+      setStatus(msg, "err");
+      setTransfer(null);
+      setTargetState(t, "error", "Failed");
+      log(`update failed: ${msg}`, "err");
+    } finally {
+      app.busy = false;
+      els.btnAdd.disabled = false;
+      updateUploadButton();
+    }
+  }
+
+  // ── Init ──
+  async function init() {
+    if (!("bluetooth" in navigator)) {
+      els.notice.textContent = "This browser does not support Web Bluetooth. Use desktop Chrome/Edge over HTTPS (or localhost).";
+      els.notice.classList.remove("hidden");
+      els.btnAdd.disabled = true;
+      return;
+    }
+
+    let known = [];
+    if (typeof navigator.bluetooth.getDevices === "function") {
+      try { known = await navigator.bluetooth.getDevices(); } catch (e) { log(`getDevices() failed: ${e.message}`, "err"); }
+    } else {
+      els.notice.innerHTML = "Persistent pairing is unavailable in this browser, so targets can't be remembered across reloads. " +
+        "Enable <strong>chrome://flags/#enable-web-bluetooth-new-permissions-backend</strong> for one-click re-uploads.";
+      els.notice.classList.remove("hidden");
+    }
+
+    const knownIds = new Set(known.map(d => d.id));
+    for (const device of known) addRealTarget(device);
+
+    // Remembered-but-not-returned targets become re-pair stubs.
+    for (const rec of loadRemembered()) {
+      if (knownIds.has(rec.id) || app.targets.has(rec.id)) continue;
+      const t = { id: rec.id, device: null, name: rec.name || "(unnamed)", stub: true };
+      app.targets.set(rec.id, t);
+      renderTarget(t);
+    }
+
+    if (known.length === 1) selectTarget(known[0].id);
+    updateSummary();
+    updateUploadButton();
+    log(`${known.length} paired device(s) available`);
+  }
+
+  // ── Wire up events ──
+  els.btnAdd.addEventListener("click", addTarget);
+  els.btnUpload.addEventListener("click", doUpload);
+  els.file.addEventListener("change", e => setPackage(e.target.files[0]));
+
+  ["dragenter", "dragover", "dragleave", "drop"].forEach(name => {
+    els.drop.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); });
+  });
+  ["dragenter", "dragover"].forEach(name => els.drop.addEventListener(name, () => els.drop.classList.add("hover")));
+  ["dragleave", "drop"].forEach(name => els.drop.addEventListener(name, () => els.drop.classList.remove("hover")));
+  els.drop.addEventListener("drop", e => setPackage(e.dataTransfer.files[0]));
+
+  init();
+  </script>
 </body>
+</html>
