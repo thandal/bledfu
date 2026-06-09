@@ -754,6 +754,8 @@
       log(`package load failed: ${e.message || e}`, "err");
     }
     updateUploadButton();
+    // Auto-flash if a real target is selected and we're not already busy.
+    if (app.pkg && !els.btnUpload.disabled) doUpload();
   }
 
   // ── Upload ──
@@ -891,7 +893,7 @@
   // ── Wire up events ──
   els.btnAdd.addEventListener("click", addTarget);
   els.btnUpload.addEventListener("click", doUpload);
-  els.file.addEventListener("change", e => setPackage(e.target.files[0]));
+  els.file.addEventListener("change", e => { setPackage(e.target.files[0]); e.target.value = ""; });
 
   ["dragenter", "dragover", "dragleave", "drop"].forEach(name => {
     els.drop.addEventListener(name, e => { e.preventDefault(); e.stopPropagation(); });
