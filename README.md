@@ -36,8 +36,7 @@ One-click reconnects rely on Chrome's persistent Web Bluetooth permissions
 chrome://flags/#enable-web-bluetooth-new-permissions-backend
 ```
 
-The app falls back to remembering target names in `localStorage` and showing a one-tap **Re-pair**
-stub when the browser can't return a device directly.
+Without it, targets simply aren't remembered across reloads — re-add them with **+ Add target**.
 
 ## Running locally
 

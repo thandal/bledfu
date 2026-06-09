@@ -81,8 +81,6 @@
     }
     .target:hover { border-color: var(--accent); }
     .target.selected { border-color: var(--accent); background: var(--card-2); box-shadow: 0 0 0 1px var(--accent) inset; }
-    .target.stub { border-style: dashed; opacity: 0.85; cursor: default; }
-    .target.stub:hover { border-color: var(--line); }
     .dot {
       width: 10px; height: 10px; border-radius: 50%; flex: none;
       background: var(--idle); box-shadow: 0 0 0 2px rgba(255,255,255,0.05);
@@ -588,26 +586,6 @@
     } catch (_) { return false; }
   }
 
-  // ───────────────────────── Remembered-device persistence ───────────────────
-  // Surfaces previously paired targets across sessions even when getDevices()
-  // returns nothing (the chrome flag may be off); a stub lets the user re-pair.
-
-  const STORAGE_KEY = "bledfu:remembered-devices";
-  const loadRemembered = () => {
-    try { const a = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); return Array.isArray(a) ? a.filter(e => e && e.id) : []; }
-    catch (_) { return []; }
-  };
-  const saveRemembered = a => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(a)); } catch (_) {} };
-  function rememberDevice(id, name) {
-    if (!id) return;
-    const arr = loadRemembered();
-    const ex = arr.find(e => e.id === id);
-    if (ex) { if (name && ex.name !== name) { ex.name = name; saveRemembered(arr); } return; }
-    arr.push({ id, name: name || "(unnamed)" });
-    saveRemembered(arr);
-  }
-  const unrememberDevice = id => saveRemembered(loadRemembered().filter(e => e.id !== id));
-
   // ───────────────────────── App / UI ────────────────────────────────────────
 
   const $ = id => document.getElementById(id);
@@ -641,7 +619,7 @@
   }
 
   const app = {
-    targets: new Map(),  // id -> { id, device|null, name, stub, el, dot, sub }
+    targets: new Map(),  // id -> { id, device, name, el, dot, sub }
     selectedId: null,
     pkg: null,
     pkgName: null,
@@ -651,17 +629,17 @@
   // ── Target cards ──
   function renderTarget(t) {
     const el = document.createElement("div");
-    el.className = "target" + (t.stub ? " stub" : "");
+    el.className = "target";
     el.dataset.id = t.id;
     el.innerHTML =
       '<span class="dot"></span>' +
       '<div class="info"><div class="name"></div><div class="sub"></div></div>' +
       '<button class="forget" title="Forget" aria-label="Forget">&times;</button>';
     el.querySelector(".name").textContent = t.name;
-    el.querySelector(".sub").textContent = t.stub ? "Remembered · re-pair to use" : "Paired";
+    el.querySelector(".sub").textContent = "Paired";
     t.dot = el.querySelector(".dot");
     t.sub = el.querySelector(".sub");
-    el.addEventListener("click", () => { t.stub ? addTarget() : selectTarget(t.id); });
+    el.addEventListener("click", () => selectTarget(t.id));
     el.querySelector(".forget").addEventListener("click", e => { e.stopPropagation(); forgetTarget(t.id); });
     t.el = el;
     els.targets.appendChild(el);
@@ -680,26 +658,17 @@
 
   function updateUploadButton() {
     const t = app.targets.get(app.selectedId);
-    els.btnUpload.disabled = app.busy || !app.pkg || !t || t.stub;
+    els.btnUpload.disabled = app.busy || !app.pkg || !t;
   }
 
   function updateSummary() {
-    const real = [...app.targets.values()].filter(t => !t.stub).length;
-    const stubs = [...app.targets.values()].filter(t => t.stub).length;
     els.targetsEmpty.style.display = app.targets.size ? "none" : "";
-    els.summary.textContent = app.targets.size
-      ? `${real} paired${stubs ? ` · ${stubs} remembered` : ""}`
-      : "";
+    els.summary.textContent = app.targets.size ? `${app.targets.size} paired` : "";
   }
 
   function addRealTarget(device) {
-    rememberDevice(device.id, device.name);
-    if (app.targets.has(device.id)) {
-      const existing = app.targets.get(device.id);
-      if (existing.stub) { existing.el.remove(); app.targets.delete(device.id); }  // upgrade stub -> real
-      else return existing;
-    }
-    const t = { id: device.id, device, name: device.name || "(unnamed)", stub: false };
+    if (app.targets.has(device.id)) return app.targets.get(device.id);
+    const t = { id: device.id, device, name: device.name || "(unnamed)" };
     app.targets.set(device.id, t);
     renderTarget(t);
     updateSummary();
@@ -726,7 +695,6 @@
     catch (e) { log(`forget failed: ${e.message}`, "err"); }
     t.el.remove();
     app.targets.delete(id);
-    unrememberDevice(id);
     if (app.selectedId === id) app.selectedId = null;
     updateSummary();
     updateUploadButton();
@@ -832,7 +800,6 @@
         setTargetState(t, "connecting", "Rebooting to DFU…");
         device = await findRebootedDevice(appIds);
         if (!device) device = await pickDfuDevice();
-        rememberDevice(device.id, device.name);
       }
 
       setTargetState(t, "connecting", "Updating…");
@@ -873,16 +840,7 @@
       els.notice.classList.remove("hidden");
     }
 
-    const knownIds = new Set(known.map(d => d.id));
     for (const device of known) addRealTarget(device);
-
-    // Remembered-but-not-returned targets become re-pair stubs.
-    for (const rec of loadRemembered()) {
-      if (knownIds.has(rec.id) || app.targets.has(rec.id)) continue;
-      const t = { id: rec.id, device: null, name: rec.name || "(unnamed)", stub: true };
-      app.targets.set(rec.id, t);
-      renderTarget(t);
-    }
 
     if (known.length === 1) selectTarget(known[0].id);
     updateSummary();
